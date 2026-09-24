@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  PASSENGER
+  DRIVER
+}
+
+enum RequestStatus {
+  REQUESTED
+  ACCEPTED
+  DRIVER_ARRIVED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+enum PoolStatus {
+  ACCEPTED
+  DRIVER_ARRIVED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  TESLAPAY
+}
+
+model User {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String        @db.VarChar(80)
+  email        String        @unique @db.VarChar(255)
+  passwordHash String
+  role         Role
+  createdAt    DateTime      @default(now())
+  vehicle      Vehicle?
+  requests     RideRequest[]
+  events       RideEvent[]
+}
+
+model Vehicle {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(80)
+  capacity  Int
+  isOnline  Boolean  @default(false)
+  driverId  String   @unique @db.Uuid
+  driver    User     @relation(fields: [driverId], references: [id])
+  pools     Pool[]
+  @@index([isOnline])
+}
+
+model RideRequest {
+  id          String        @id @default(uuid()) @db.Uuid
+  passengerId String        @db.Uuid
+  passenger   User          @relation(fields: [passengerId], references: [id])
+  pickup      String        @db.VarChar(50)
+  destination String        @db.VarChar(50)
+  seats       Int
+  status      RequestStatus @default(REQUESTED)
+  farePaisa   Int
+  payment     PaymentMethod @default(CASH)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  membership  Membership?
+  events      RideEvent[]
+  @@index([status, pickup, createdAt])
+  @@index([passengerId, createdAt])
+}
+
+model Pool {
+  id          String       @id @default(uuid()) @db.Uuid
+  vehicleId   String       @db.Uuid
+  vehicle     Vehicle      @relation(fields: [vehicleId], references: [id])
+  status      PoolStatus   @default(ACCEPTED)
+  pickup      String       @db.VarChar(50)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+  @@index([vehicleId, status])
+  @@index([status, pickup])
+}
+
+model Membership {
+  id        String      @id @default(uuid()) @db.Uuid
+  poolId    String      @db.Uuid
+  requestId String      @unique @db.Uuid
+  seats     Int
+  joinedAt  DateTime    @default(now())
+  pool      Pool        @relation(fields: [poolId], references: [id])
+  request   RideRequest @relation(fields: [requestId], references: [id])
+  @@index([poolId])
+}
+
+model RideEvent {
+  id        String        @id @default(uuid()) @db.Uuid
+  requestId String        @db.Uuid
+  actorId   String        @db.Uuid
+  from      RequestStatus?
+  to        RequestStatus
+  note      String?       @db.VarChar(160)
+  createdAt DateTime      @default(now())
+  request   RideRequest   @relation(fields: [requestId], references: [id])
+  actor     User          @relation(fields: [actorId], references: [id])
+  @@index([requestId, createdAt])
+}

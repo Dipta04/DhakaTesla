@@ -1,0 +1,15 @@
+{
+  "name": "dhaka-tesla-pool",
+  "private": true,
+  "workspaces": ["apps/api", "apps/web"],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w @tesla/api\" \"npm run dev -w @tesla/web\"",
+    "build": "npm run build -w @tesla/api && npm run build -w @tesla/web",
+    "test": "npm run test -w @tesla/api",
+    "db:generate": "npm run db:generate -w @tesla/api",
+    "db:migrate": "npm run db:migrate -w @tesla/api",
+    "db:seed": "npm run db:seed -w @tesla/api"
+  },
+  "devDependencies": {"concurrently": "^9.2.1"},
+  "engines": {"node": ">=20"}
+}
