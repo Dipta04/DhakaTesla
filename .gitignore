@@ -8,3 +8,5 @@ coverage/
 *.log
 *.tsbuildinfo
 .DS_Store
+tmp/
+Dhaka_Tesla_Pool_PRD_Internship.pdf
