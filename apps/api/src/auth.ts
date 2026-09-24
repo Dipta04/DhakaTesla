@@ -28,7 +28,7 @@ export async function verifyLogin(email: string, password: string) {
 export function setSession(res: Response, user: Principal) {
   const token = jwt.sign(user, secret(), { expiresIn: "7d" });
   res.cookie("tesla_session", token, {
-    httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 7 * 86400000
+    httpOnly: true, secure: (process.env.WEB_ORIGIN || "").startsWith("https://"), sameSite: "lax", path: "/", maxAge: 7 * 86400000
   });
 }
 
