@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "./db.js";
 import { AREAS, compatible, farePaisa } from "./domain.js";
-import { authenticate, createPassenger, requireRole, setSession, verifyLogin } from "./auth.js";
+import { authenticate, createAccount, requireRole, setSession, verifyLogin } from "./auth.js";
 import { asyncRoute, errors, HttpError } from "./http.js";
 import { acceptRequest, advancePool, cancelPool, cancelRequest, createRequest, getPassengerRide, listPassengerRides, setDriverOnline } from "./rides.js";
 
@@ -33,10 +33,18 @@ app.use((req, _res, next) => {
 
 const uuid = z.string().uuid();
 const credentials = z.object({ email: z.string().email().max(255), password: z.string().min(8).max(72) });
-const signup = credentials.extend({ name: z.string().trim().min(2).max(80) });
+const signup = credentials.extend({
+  name: z.string().trim().min(2).max(80),
+  role: z.enum(["PASSENGER", "DRIVER"]),
+  vehicleName: z.string().trim().min(2).max(80).optional(),
+  capacity: z.number().int().min(3).max(5).optional()
+}).superRefine((input, context) => {
+  if (input.role === "DRIVER" && !input.vehicleName) context.addIssue({ code: "custom", path: ["vehicleName"], message: "Enter your vehicle name" });
+  if (input.role === "DRIVER" && input.capacity === undefined) context.addIssue({ code: "custom", path: ["capacity"], message: "Choose 3 to 5 seats" });
+});
 const requestInput = z.object({
   pickup: z.enum(AREAS), destination: z.enum(AREAS),
-  seats: z.number().int().min(1).max(3), payment: z.enum(["CASH", "TESLAPAY"]).default("CASH")
+  seats: z.number().int().min(1).max(5), payment: z.enum(["CASH", "TESLAPAY"]).default("CASH")
 }).refine((input) => input.pickup !== input.destination, { message: "Choose a different destination", path: ["destination"] });
 
 app.get("/api/health", asyncRoute(async (_req, res) => {
@@ -47,7 +55,7 @@ app.get("/api/areas", (_req, res) => res.json(AREAS));
 
 app.post("/api/auth/signup", asyncRoute(async (req, res) => {
   const input = signup.parse(req.body);
-  const user = await createPassenger(input.name, input.email, input.password);
+  const user = await createAccount(input);
   setSession(res, user);
   res.status(201).json(user);
 }));

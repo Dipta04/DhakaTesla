@@ -14,9 +14,16 @@ const secret = () => {
   return value;
 };
 
-export async function createPassenger(name: string, email: string, password: string) {
+export async function createAccount(input: { name: string; email: string; password: string; role: Role; vehicleName?: string; capacity?: number }) {
+  const { name, email, password, role, vehicleName, capacity } = input;
   const passwordHash = await bcrypt.hash(password, 12);
-  return db.user.create({ data: { name, email: email.toLowerCase(), passwordHash, role: "PASSENGER" }, select: { id: true, name: true, email: true, role: true } });
+  return db.user.create({
+    data: {
+      name, email: email.toLowerCase(), passwordHash, role,
+      ...(role === "DRIVER" ? { vehicle: { create: { name: vehicleName!, capacity: capacity!, isOnline: false } } } : {})
+    },
+    select: { id: true, name: true, email: true, role: true }
+  });
 }
 
 export async function verifyLogin(email: string, password: string) {
