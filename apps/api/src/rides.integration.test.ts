@@ -81,4 +81,19 @@ describe.skipIf(!run)("ride integrity in PostgreSQL", () => {
     const members = await db.membership.findMany({ where: { poolId, request: { status: { not: "CANCELLED" } } } });
     expect(members.reduce((seats, member) => seats + member.seats, 0)).toBe(3);
   });
+
+  it("fills a five-seat vehicle without admitting a sixth seat", async () => {
+    await db.vehicle.update({ where: { id: fixture!.vehicleId }, data: { capacity: 5 } });
+    const [nusrat, rafiq, shirin] = fixture!.passengerIds;
+    const first = await createRequest(nusrat, "Banani", "Mohakhali", 2, "CASH");
+    const second = await createRequest(rafiq, "Banani", "Gulshan", 2, "CASH");
+    const third = await createRequest(shirin, "Banani", "Gulshan", 1, "CASH");
+    const overflow = await createRequest(nusrat, "Banani", "Mohakhali", 1, "CASH");
+    const poolId = await acceptRequest(fixture!.driverId, first.id);
+    await acceptRequest(fixture!.driverId, second.id);
+    await acceptRequest(fixture!.driverId, third.id);
+    await expect(acceptRequest(fixture!.driverId, overflow.id)).rejects.toThrow("Not enough seats");
+    const members = await db.membership.findMany({ where: { poolId } });
+    expect(members.reduce((total, member) => total + member.seats, 0)).toBe(5);
+  });
 });
