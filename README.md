@@ -147,7 +147,7 @@ npm run db:migrate
 npm test
 ```
 
-The integration suite skips itself when no matching test database is configured. It does not run against the demo or production database. No database service or Docker executable was available in the authoring environment, so the integration suite and Compose startup need a local smoke run before submission.
+The integration suite skips itself when no matching test database is configured. It does not run against the demo or production database. **Verification completed:** both production builds passed, all eight tests passed against a disposable local PostgreSQL 18 database, and an HTTP smoke run signed in Nusrat/Jashim and confirmed two pool members at 7,600/8,800 paisa. Docker was unavailable, so Compose startup still needs a local smoke run before submission.
 
 ## API overview
 
