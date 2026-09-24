@@ -2,9 +2,10 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import helmet from "helmet";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "./db.js";
-import { AREAS, farePaisa } from "./domain.js";
+import { AREAS, compatible, farePaisa } from "./domain.js";
 import { authenticate, createPassenger, requireRole, setSession, verifyLogin } from "./auth.js";
 import { asyncRoute, errors, HttpError } from "./http.js";
 import { acceptRequest, advancePool, cancelPool, cancelRequest, createRequest, getPassengerRide, listPassengerRides, setDriverOnline } from "./rides.js";
@@ -15,6 +16,15 @@ app.use(helmet());
 app.use(express.json({ limit: "32kb" }));
 app.use(cookieParser());
 app.use(cors({ origin: process.env.WEB_ORIGIN || "http://localhost:3000", credentials: true }));
+app.use((req, res, next) => {
+  const requestId = randomUUID();
+  const started = Date.now();
+  res.setHeader("x-request-id", requestId);
+  res.on("finish", () => {
+    if (req.path !== "/api/health") console.info(JSON.stringify({ requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - started }));
+  });
+  next();
+});
 app.use((req, _res, next) => {
   if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && req.headers.origin && req.headers.origin !== (process.env.WEB_ORIGIN || "http://localhost:3000"))
     return next(new HttpError(403, "Origin not allowed"));
@@ -48,7 +58,7 @@ app.post("/api/auth/login", asyncRoute(async (req, res) => {
   res.json(user);
 }));
 app.post("/api/auth/logout", (_req, res) => {
-  res.clearCookie("tesla_session", { path: "/", sameSite: "lax", secure: process.env.NODE_ENV === "production" });
+  res.clearCookie("tesla_session", { path: "/", sameSite: "lax", secure: (process.env.WEB_ORIGIN || "").startsWith("https://") });
   res.status(204).end();
 });
 app.get("/api/me", authenticate, asyncRoute(async (req, res) => {
@@ -86,7 +96,13 @@ app.get("/api/driver/dashboard", authenticate, requireRole("DRIVER"), asyncRoute
     db.rideRequest.findMany({ where: { status: "REQUESTED", seats: { lte: vehicle.capacity } }, select: { id: true, pickup: true, destination: true, seats: true, farePaisa: true, createdAt: true, passenger: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 30 }),
     db.pool.findMany({ where: { vehicleId: vehicle.id }, include: { memberships: { include: { request: { select: { id: true, pickup: true, destination: true, seats: true, status: true, farePaisa: true, payment: true, passenger: { select: { name: true } } } } } } }, orderBy: { createdAt: "desc" }, take: 20 })
   ]);
-  res.json({ vehicle, pending, pools });
+  const active = pools.find((pool) => ["ACCEPTED", "DRIVER_ARRIVED", "STARTED"].includes(pool.status));
+  const members = active?.memberships.filter(({ request }) => request.status !== "CANCELLED") || [];
+  const remaining = vehicle.capacity - members.reduce((total, member) => total + member.seats, 0);
+  const relevant = active
+    ? active.status === "ACCEPTED" ? pending.filter((request) => request.seats <= remaining && members.every((member) => compatible(member.request, request))) : []
+    : pending;
+  res.json({ vehicle, pending: relevant, pools });
 }));
 app.patch("/api/driver/online", authenticate, requireRole("DRIVER"), asyncRoute(async (req, res) => {
   const { online } = z.object({ online: z.boolean() }).parse(req.body);

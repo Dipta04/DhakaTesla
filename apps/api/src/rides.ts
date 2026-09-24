@@ -41,7 +41,7 @@ export async function acceptRequest(driverId: string, requestId: string) {
     const vehicle = await tx.vehicle.findUnique({ where: { driverId } });
     if (!vehicle) throw new HttpError(404, "No Tesla assigned to this driver");
     await lockVehicle(tx, vehicle.id); // Serializes competing claims for this vehicle.
-    if (!vehicle.isOnline) throw new HttpError(409, "Go online before accepting rides");
+    if (!(await tx.vehicle.findUniqueOrThrow({ where: { id: vehicle.id } })).isOnline) throw new HttpError(409, "Go online before accepting rides");
     const request = await tx.rideRequest.findUnique({ where: { id: requestId } });
     if (!request || request.status !== "REQUESTED") throw new HttpError(409, "Request is no longer available");
     if (request.seats > vehicle.capacity) throw new HttpError(409, "Request exceeds Tesla capacity");
@@ -55,8 +55,9 @@ export async function acceptRequest(driverId: string, requestId: string) {
     } else {
       pool = await tx.pool.create({ data: { vehicleId: vehicle.id, pickup: request.pickup } });
     }
+    const claimed = await tx.rideRequest.updateMany({ where: { id: request.id, status: "REQUESTED" }, data: { status: "ACCEPTED" } });
+    if (claimed.count !== 1) throw new HttpError(409, "Request is no longer available");
     await tx.membership.create({ data: { poolId: pool.id, requestId: request.id, seats: request.seats } });
-    await tx.rideRequest.update({ where: { id: request.id }, data: { status: "ACCEPTED" } });
     await event(tx, request.id, driverId, "REQUESTED", "ACCEPTED", `Assigned to ${vehicle.name}`);
     await reprice(tx, pool.id);
     return pool.id;
@@ -67,9 +68,17 @@ export async function cancelRequest(passengerId: string, requestId: string) {
   return db.$transaction(async (tx) => {
     const original = await tx.rideRequest.findUnique({ where: { id: requestId }, include: { membership: { include: { pool: true } } } });
     if (!original || original.passengerId !== passengerId) throw new HttpError(404, "Ride not found");
-    if (original.membership) await lockVehicle(tx, original.membership.pool.vehicleId);
+    if (!original.membership) {
+      // A request being claimed at the same time will fail this compare-and-swap.
+      // The passenger may retry after the claim commits, when the vehicle lock is known.
+      const cancelled = await tx.rideRequest.updateMany({ where: { id: requestId, passengerId, status: "REQUESTED" }, data: { status: "CANCELLED" } });
+      if (cancelled.count !== 1) throw new HttpError(409, "Ride changed; refresh and try again");
+      await event(tx, requestId, passengerId, "REQUESTED", "CANCELLED", "Cancelled by passenger");
+      return;
+    }
+    await lockVehicle(tx, original.membership.pool.vehicleId);
     const request = await tx.rideRequest.findUnique({ where: { id: requestId }, include: { membership: { include: { pool: true } } } });
-    if (!request || !["REQUESTED", "ACCEPTED", "DRIVER_ARRIVED"].includes(request.status)) throw new HttpError(409, "This ride can no longer be cancelled");
+    if (!request || !["ACCEPTED", "DRIVER_ARRIVED"].includes(request.status)) throw new HttpError(409, "This ride can no longer be cancelled");
     await tx.rideRequest.update({ where: { id: requestId }, data: { status: "CANCELLED" } });
     await event(tx, requestId, passengerId, request.status, "CANCELLED", "Cancelled by passenger");
     if (request.membership) {
@@ -119,4 +128,15 @@ export function listPassengerRides(passengerId: string) {
 
 export function getPassengerRide(passengerId: string, id: string) {
   return db.rideRequest.findFirst({ where: { id, passengerId }, select: passengerView });
+}
+
+export function setDriverOnline(driverId: string, online: boolean) {
+  return db.$transaction(async (tx) => {
+    const vehicle = await tx.vehicle.findUnique({ where: { driverId } });
+    if (!vehicle) throw new HttpError(404, "No Tesla assigned");
+    await lockVehicle(tx, vehicle.id);
+    if (!online && await tx.pool.count({ where: { vehicleId: vehicle.id, status: { in: activePoolStates } } }))
+      throw new HttpError(409, "Complete or cancel your active pool first");
+    return tx.vehicle.update({ where: { id: vehicle.id }, data: { isOnline: online } });
+  });
 }
