@@ -1,6 +1,6 @@
 # Diagrams
 
-The SVG files in this folder are ready to insert into a video, slide, README, or draw.io. The Mermaid source below is editable in [Mermaid Live](https://mermaid.live/); diagrams.net also imports Mermaid via **Arrange → Insert → Advanced → Mermaid**.
+The PNG exports in this folder are displayed in the README and can be used in a video or slide. The Mermaid source below remains editable in [Mermaid Live](https://mermaid.live/); diagrams.net also imports Mermaid via **Arrange → Insert → Advanced → Mermaid**. Earlier SVG exports remain available as alternatives.
 
 ## Architecture
 

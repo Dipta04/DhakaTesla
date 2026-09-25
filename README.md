@@ -19,9 +19,13 @@ The architecture and ERD images below can be shown in the video. **Demo video:**
 
 ## Architecture
 
-![Architecture diagram](docs/architecture.svg)
+![Architecture diagram](docs/architecture.png)
 
-![Entity relationship diagram](docs/erd.svg)
+[Open the architecture diagram at full size](docs/architecture.png).
+
+![Entity relationship diagram](docs/erd.png)
+
+[Open the ERD at full size](docs/erd.png).
 
 Editable Mermaid diagrams and import instructions are in [docs/diagrams.md](docs/diagrams.md). The browser calls `/api` on the Next.js origin. Next.js rewrites those requests to Express. Express performs validation, authorization, matching, fare calculation, status transitions, and transactional seat enforcement. Prisma ORM talks to PostgreSQL. The same schema works with local PostgreSQL or hosted **Prisma Postgres**; a hosted database does not replace the API.
 
@@ -86,7 +90,7 @@ apps/web/
   src/app/page.tsx, globals.css
   src/lib/api.ts
 docs/
-  architecture.svg, erd.svg, diagrams.md, demo-video.md
+  architecture.png, erd.png, diagrams.md, demo-video.md
 compose.yaml, .env.example, README.md
 ```
 
