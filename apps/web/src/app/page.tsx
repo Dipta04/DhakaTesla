@@ -112,7 +112,7 @@ function PassengerPanel({ user }: { user: User }) {
 
   async function book(event: FormEvent) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
-    try { await api("/requests", { method: "POST", body: JSON.stringify({ pickup, destination, seats, payment }) }); setNotice("Request sent. Jashim can now match your seat."); await refresh(); }
+    try { await api("/requests", { method: "POST", body: JSON.stringify({ pickup, destination, seats, payment }) }); setNotice("Request sent. Check your ride status below for updates."); await refresh(); }
     catch (err) { setError((err as Error).message); }
     finally { setBusy(false); }
   }

@@ -56,6 +56,8 @@ Two bookings are compatible when they share a pickup and destination, or when bo
 
 Request lifecycle: `REQUESTED → ACCEPTED → DRIVER_ARRIVED → STARTED → COMPLETED`; cancellation is allowed from requested, accepted, or driver-arrived. Pool lifecycle starts at accepted because a pool exists only after driver acceptance. Drivers can cancel accepted/arrived pools; neither actor can cancel after departure. Every status change writes a `RideEvent` in the same transaction.
 
+Submitting a request only puts it in the waiting queue. The confirmation directs passengers to their ride status and does not name or promise a driver. A driver can accept only if the booking fits that vehicle's capacity; for example, Jashim's three-seat Bullet cannot accept a five-seat request.
+
 ### The last-seat race
 
 Each accept operation takes a PostgreSQL `SELECT ... FOR UPDATE` lock on Bullet's `Vehicle` row inside a Prisma transaction, then re-reads the active pool and sums seats of non-cancelled members. Thus two concurrent claims for the last seat are serialized; the second sees the first claim and receives HTTP 409. A partial unique index also prevents two active pools for the same vehicle. Request status uses a conditional update to resolve acceptance versus unassigned cancellation. At larger scale, partition drivers geographically, retain single-writer transaction ownership per vehicle, and add idempotency keys/retries around API requests.
@@ -182,13 +184,13 @@ Local Docker needs no cloud account. For a public demo, create a free Prisma Pos
 
 ## GitHub upload and required branches
 
-The checked-in history includes `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, `feature/passenger-ui`, `feature/driver-signup`, `feature/fare-clarity`, and `feature/contact-numbers`, merged to `master`. `pre-release` contains integration/docs/verification. `release/v1.0.0` preserves the original MVP, and `release/v1.1.0` contains role signup, fare transparency, and assigned-ride contact numbers. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
+The checked-in history includes `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, `feature/passenger-ui`, `feature/driver-signup`, `feature/fare-clarity`, `feature/contact-numbers`, and `feature/request-confirmation`, merged to `master`. `pre-release` contains integration/docs/verification. `release/v1.0.0` preserves the original MVP, and `release/v1.1.0` contains role signup, fare transparency, and assigned-ride contact numbers. The generic request confirmation is on `master` after v1.1.0. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
 
 ```bash
 git remote add origin https://github.com/YOUR_USERNAME/dhaka-tesla-pool.git
 git push -u origin master
 git push origin pre-release release/v1.0.0 release/v1.1.0
-git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui feature/driver-signup feature/fare-clarity feature/contact-numbers
+git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui feature/driver-signup feature/fare-clarity feature/contact-numbers feature/request-confirmation
 ```
 
 GitHub will ask for browser authentication or a credential manager; never paste a personal access token into a committed file. Set `master` as the default branch in **Settings → Default branch**, make the repository public or grant evaluator access, and verify that the branches and merge commits appear in **Branches** and **Commits**. For subsequent work: branch from `master`, commit a logical change with `feat(scope): ...` or the specified `fix/refactor/test/docs/chore/build` types, merge into `master` after checks, then cut a new pre-release and release version when ready. Do not create duplicate project folders for each branch.
