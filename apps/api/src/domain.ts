@@ -21,11 +21,22 @@ export function compatible(a: { pickup: string; destination: string }, b: { pick
     [a.destination, b.destination].every((zone) => zone === "Mohakhali" || zone === "Gulshan");
 }
 
-// Values are integer paisa. Each booking pays per seat; the 20% discount applies
-// when two or more active bookings share a pool, before the driver starts.
+// Each component is integer paisa for the whole booking. The fare is always
+// baseFare + distanceCharge - poolDiscount, with no floating-point money.
+export function fareBreakdown(pickup: Area, destination: Area, seats: number, pooled: boolean) {
+  const km = distanceKm(pickup, destination);
+  const baseFarePaisa = 5000 * seats;
+  const distanceChargePaisa = 1500 * km * seats;
+  const subtotalPaisa = baseFarePaisa + distanceChargePaisa;
+  const poolDiscountPaisa = pooled ? Math.floor(subtotalPaisa / 5) : 0;
+  return {
+    distanceKm: km, baseFarePaisa, distanceChargePaisa, poolDiscountPaisa,
+    farePaisa: baseFarePaisa + distanceChargePaisa - poolDiscountPaisa
+  };
+}
+
 export function farePaisa(pickup: Area, destination: Area, seats: number, pooled: boolean): number {
-  const undiscounted = (5000 + 1500 * distanceKm(pickup, destination)) * seats;
-  return pooled ? Math.round(undiscounted * 0.8) : undiscounted;
+  return fareBreakdown(pickup, destination, seats, pooled).farePaisa;
 }
 
 export const nextPoolStatus: Record<string, string> = {

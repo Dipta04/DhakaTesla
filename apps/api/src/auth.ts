@@ -14,15 +14,22 @@ const secret = () => {
   return value;
 };
 
-export async function createPassenger(name: string, email: string, password: string) {
+export async function createAccount(input: { name: string; email: string; password: string; phone: string; role: Role; vehicleName?: string; capacity?: number }) {
+  const { name, email, password, phone, role, vehicleName, capacity } = input;
   const passwordHash = await bcrypt.hash(password, 12);
-  return db.user.create({ data: { name, email: email.toLowerCase(), passwordHash, role: "PASSENGER" }, select: { id: true, name: true, email: true, role: true } });
+  return db.user.create({
+    data: {
+      name, email: email.toLowerCase(), phone, passwordHash, role,
+      ...(role === "DRIVER" ? { vehicle: { create: { name: vehicleName!, capacity: capacity!, isOnline: false } } } : {})
+    },
+    select: { id: true, name: true, email: true, phone: true, role: true }
+  });
 }
 
 export async function verifyLogin(email: string, password: string) {
   const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) throw new HttpError(401, "Invalid email or password");
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return { id: user.id, name: user.name, email: user.email, phone: user.phone, role: user.role };
 }
 
 export function setSession(res: Response, user: Principal) {

@@ -39,6 +39,7 @@ model User {
   id           String        @id @default(uuid()) @db.Uuid
   name         String        @db.VarChar(80)
   email        String        @unique @db.VarChar(255)
+  phone        String?       @unique @db.VarChar(14)
   passwordHash String
   role         Role
   createdAt    DateTime      @default(now())
@@ -66,6 +67,9 @@ model RideRequest {
   destination String        @db.VarChar(50)
   seats       Int
   status      RequestStatus @default(REQUESTED)
+  baseFarePaisa Int
+  distanceChargePaisa Int
+  poolDiscountPaisa Int
   farePaisa   Int
   payment     PaymentMethod @default(CASH)
   createdAt   DateTime      @default(now())

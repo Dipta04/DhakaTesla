@@ -6,9 +6,9 @@
 
 ## Product tour
 
-- Passenger: sign up or sign in, choose two Dhaka areas, see an estimated solo and pooled fare, request one to three seats, follow status, cancel before departure, and review the event timeline.
-- Driver: sign in, go online, review pending requests, accept compatible bookings into Bullet, see names/seats/fares, mark arrival, start, complete, or cancel a pool, and review history.
-- Pool: one active pool per vehicle, three seats maximum, matching by the documented rule, fare recalculation before start, individual request status and immutable events.
+- Passenger: choose the passenger role at signup, add a Bangladesh mobile number, sign in, choose two Dhaka areas, see a fare breakdown, request one to five seats, follow status, call the assigned driver, cancel before departure, and review the event timeline.
+- Driver: choose the driver role at signup, add a Bangladesh mobile number, register a named vehicle with 3–5 passenger seats, then go online, review requests, accept compatible bookings, call assigned passengers, manage trip stages, and review history.
+- Pool: one active pool per vehicle, occupied seats never above that vehicle's capacity, matching by the documented rule, fare recalculation before start, individual request status and immutable events.
 - Payment: cash or **simulated** TeslaPay selection. No money is collected or wallet balance maintained.
 
 ### Screenshots and video
@@ -29,9 +29,9 @@ Editable Mermaid diagrams and import instructions are in [docs/diagrams.md](docs
 
 | Table | Purpose |
 | --- | --- |
-| `User` | Passenger/driver identity, role, bcrypt password hash; unique email. |
-| `Vehicle` | One Tesla per driver, online status, capacity constrained to 1–3. |
-| `RideRequest` | A passenger's route, seats, payment choice, own fare, and status. |
+| `User` | Passenger/driver identity, role, bcrypt password hash, unique email and unique Bangladesh contact number. |
+| `Vehicle` | One Tesla per driver, online status, capacity constrained to 3–5. |
+| `RideRequest` | A passenger's route, seats, payment choice, status, and stored base/distance/discount/final fare components. |
 | `Pool` | One driver's trip and its lifecycle; partial unique index permits one active pool per vehicle. |
 | `Membership` | Explicit booking-to-pool link; retains cancelled membership for audit while excluding it from occupied seats. |
 | `RideEvent` | Append-only status timeline with actor, before/after status, note, and time. |
@@ -40,11 +40,17 @@ Indexed lookup paths are pending requests by status/pickup/time, passenger histo
 
 ## Business rules you can calculate by hand
 
-The demo uses predefined area coordinates, rounded straight-line grid kilometres (minimum 1 km). This is **not road routing**. A booking's solo fare in integer paisa is:
+The demo uses predefined area coordinates, rounded straight-line grid kilometres (minimum 1 km). This is **not road routing**. For a booking of `seats` passenger seats, every amount is in integer paisa:
 
-`seats × (5,000 + 1,500 × distanceKm)`
+`baseFare = 5,000 × seats`
 
-When two or more active bookings share the same pool before departure, each fare becomes `round(solo fare × 0.80)`. One taka is 100 paisa. Banani → Mohakhali is 3 km: Nusrat pays **৳95** alone or **৳76** pooled. Banani → Gulshan is 4 km: Rafiq pays **৳110** alone or **৳88** pooled. A third booking can claim Bullet's last seat if it fits. If a passenger cancels before start, remaining active bookings are repriced; fares freeze when the driver starts. Integer paisa avoids floating-point money drift.
+`distanceCharge = 1,500 × distanceKm × seats`
+
+`poolDiscount = floor((baseFare + distanceCharge) ÷ 5)` when at least two active bookings share a pool; otherwise zero.
+
+`passengerFare = baseFare + distanceCharge - poolDiscount`
+
+One taka is 100 paisa. For one seat, Banani → Mohakhali is 3 km: **৳50 base + ৳45 distance − ৳19 pool discount = ৳76**. Before a second booking joins, Nusrat's fare is **৳95**. Banani → Gulshan is 4 km: Rafiq's **৳50 + ৳60 − ৳22 = ৳88** pooled, compared with **৳110** solo. The discount always lowers the fare for the **same route and seat count**; a two-seat booking can cost more in total than a one-seat booking because it reserves two seats. The UI shows both the solo estimate and potential pooled fare, then shows the discount actually applied to each ride. A third booking can claim Bullet's last seat if it fits. If a passenger cancels before start, remaining active bookings are repriced; fares freeze when the driver starts. Storing all components preserves an auditable calculation and avoids floating-point money drift.
 
 Two bookings are compatible when they share a pickup and destination, or when both start at **Banani** and their destinations are **Mohakhali/Gulshan** in either order. This intentionally narrow corridor is enough to demonstrate overlapping routes without suggesting a real detour or route-time guarantee. Different pickups and other mixed destinations do not pool.
 
@@ -72,7 +78,7 @@ Each accept operation takes a PostgreSQL `SELECT ... FOR UPDATE` lock on Bullet'
 ```text
 apps/api/
   prisma/schema.prisma, migrations/, seed.ts
-  src/auth.ts, domain.ts, rides.ts, app.ts, server.ts
+  src/auth.ts, phone.ts, domain.ts, rides.ts, app.ts, server.ts
   src/*.test.ts
 apps/web/
   src/app/page.tsx, globals.css
@@ -82,7 +88,7 @@ docs/
 compose.yaml, .env.example, README.md
 ```
 
-These are **folders in one repository**. `master`, `pre-release`, `release/v1.0.0`, and `feature/*` are Git branches, not duplicate folders. Their commit history shows the implementation steps.
+These are **folders in one repository**. `master`, `pre-release`, `release/v1.0.0`, `release/v1.1.0`, and `feature/*` are Git branches, not duplicate folders. Their commit history shows the implementation steps.
 
 ## Prerequisites and environment
 
@@ -110,7 +116,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open **http://localhost:3000**. Compose waits for Postgres, applies the checked-in migration, seeds the cast, starts Express, waits for `/api/health`, then starts Next.js. Stop with `docker compose down`. To remove demo data as well, `docker compose down -v` destroys the database volume; use it only when you intend to reset data. If a password changes after the volume has been initialized, reset the volume or update the database user separately.
+Run the command from the repository root, **`E:\telsa_internship_project`** in the provided workspace, where `compose.yaml` lives. In PowerShell use `Copy-Item .env.example .env` instead of `cp` if needed. Open **http://localhost:3000**. Compose waits for Postgres, applies all checked-in migrations, seeds the cast, starts Express, waits for `/api/health`, then starts Next.js. Stop with `docker compose down`. To remove demo data as well, `docker compose down -v` destroys the database volume; use it only when you intend to reset data. If a password changes after the volume has been initialized, reset the volume or update the database user separately.
 
 ### Host development
 
@@ -134,7 +140,11 @@ Run a local PostgreSQL server matching `apps/api/.env`, or start only the DB wit
 | Passenger Rafiq | `rafiq@teslapool.test` | `DemoPass123!` |
 | Passenger Shirin | `shirin@teslapool.test` | `DemoPass123!` |
 
-The seed is idempotent. It creates Bullet online with three seats and waiting requests for Nusrat and Rafiq; Shirin can create the third request in the UI. Change `SEED_PASSWORD` on any shared demo instance, and never seed real user accounts into a production database.
+The seed is idempotent. It creates Bullet online with three seats and waiting requests for Nusrat and Rafiq; Shirin can create the third request in the UI. Demo users have synthetic Bangladesh-format numbers (`+8801300000001` through `+8801300000004`); these are placeholders for UI testing, not real contacts. Change `SEED_PASSWORD` on any shared demo instance, and never seed real user accounts into a production database. Accounts created before the contact-number migration see a prompt to add their number after login; they cannot request rides or go online until they do.
+
+### Contact numbers and visibility
+
+Signup requires a Bangladesh mobile number such as `01712345678`; `8801712345678` and `+8801712345678` are also accepted. The API stores the canonical `+880` format and rejects an invalid or duplicate number. Signed-in users can change their own number in **Edit contact**. The driver request queue shows names without phone numbers. When a driver accepts a booking, the active pool shows that passenger's tap-to-call number and the passenger's ride shows the assigned driver's tap-to-call number. Cancelled memberships and completed pool history do not expose passenger numbers. These links open the device dialer; the app does not place calls or send SMS.
 
 ## Tests
 
@@ -147,7 +157,7 @@ npm run db:migrate
 npm test
 ```
 
-The integration suite skips itself when no matching test database is configured. It does not run against the demo or production database. **Verification completed:** both production builds passed, all eight tests passed against a disposable local PostgreSQL 18 database, and an HTTP smoke run signed in Nusrat/Jashim and confirmed two pool members at 7,600/8,800 paisa. Docker was unavailable, so Compose startup still needs a local smoke run before submission.
+The integration suite skips itself when no matching test database is configured. It does not run against the demo or production database. **Verification completed:** both production builds passed; all 17 tests passed against a disposable local PostgreSQL 18 database, including driver registration, 5-seat capacity, concurrent claims, fare arithmetic, migration backfill, phone normalization/profile update, and assigned-contact privacy. An HTTP smoke run signed in Nusrat/Jashim and confirmed two pool members at 7,600/8,800 paisa. Docker was unavailable, so Compose startup still needs a local smoke run before submission.
 
 ## API overview
 
@@ -155,9 +165,9 @@ All endpoints are JSON under `/api` except 204 responses. Authentication uses an
 
 | Method and path | Actor | What it does |
 | --- | --- | --- |
-| `POST /auth/signup`, `/auth/login`, `/auth/logout` | Public | Passenger signup and first-party sessions; driver signs in from seed. |
-| `GET /me`, `/areas`, `/health` | Mixed | Identity, available zones, DB health. |
-| `POST /requests/estimate` | Passenger | Solo and potential pooled price. |
+| `POST /auth/signup`, `/auth/login`, `/auth/logout` | Public | Choose passenger/driver role and provide a Bangladesh contact number at signup; a driver also provides `vehicleName` and `capacity` (3–5) and starts offline. First-party sessions. |
+| `GET /me`, `PATCH /me/phone`, `GET /areas`, `GET /health` | Mixed | Identity, authenticated contact update, available zones, DB health. |
+| `POST /requests/estimate` | Passenger | Solo and potential pooled price, each with base/distance/discount components. |
 | `POST /requests`, `GET /requests`, `GET /requests/:id` | Passenger | Create, list, inspect own requests. |
 | `POST /requests/:id/cancel` | Passenger | Cancel while valid. |
 | `GET /driver/dashboard`, `PATCH /driver/online` | Driver | Request queue, pools, status, availability. |
@@ -172,13 +182,13 @@ Local Docker needs no cloud account. For a public demo, create a free Prisma Pos
 
 ## GitHub upload and required branches
 
-The checked-in history was built on `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, and `feature/passenger-ui`, then merged to `master`. `pre-release` contains integration/docs/verification, and `release/v1.0.0` points to the demo version. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
+The checked-in history includes `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, `feature/passenger-ui`, `feature/driver-signup`, `feature/fare-clarity`, and `feature/contact-numbers`, merged to `master`. `pre-release` contains integration/docs/verification. `release/v1.0.0` preserves the original MVP, and `release/v1.1.0` contains role signup, fare transparency, and assigned-ride contact numbers. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
 
 ```bash
 git remote add origin https://github.com/YOUR_USERNAME/dhaka-tesla-pool.git
 git push -u origin master
-git push origin pre-release release/v1.0.0
-git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui
+git push origin pre-release release/v1.0.0 release/v1.1.0
+git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui feature/driver-signup feature/fare-clarity feature/contact-numbers
 ```
 
 GitHub will ask for browser authentication or a credential manager; never paste a personal access token into a committed file. Set `master` as the default branch in **Settings → Default branch**, make the repository public or grant evaluator access, and verify that the branches and merge commits appear in **Branches** and **Commits**. For subsequent work: branch from `master`, commit a logical change with `feat(scope): ...` or the specified `fix/refactor/test/docs/chore/build` types, merge into `master` after checks, then cut a new pre-release and release version when ready. Do not create duplicate project folders for each branch.
@@ -186,7 +196,7 @@ GitHub will ask for browser authentication or a credential manager; never paste 
 ## Decisions, limitations, and next work
 
 - Zone distances and matching are intentionally schematic. No map API, detour budget, live position, or ETA is represented.
-- Driver account provisioning and password reset are manual; passenger signup is first-party. Add verified email/reset/MFA before public production use.
+- Passenger and driver signup are first-party; email verification and password reset remain unimplemented. Add verified email/reset/MFA before public production use.
 - TeslaPay is a simulated choice, not a wallet or gateway. A real payment integration needs ledger entries, webhooks, refunds, and reconciliation.
 - UI refreshes every ten seconds; WebSockets or server-sent events would improve live pickup updates.
 - Only one active pool per driver/vehicle and no automatic dispatch between many vehicles. Add geographic search and assignment rules when more drivers exist.

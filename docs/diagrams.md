@@ -31,6 +31,7 @@ erDiagram
     uuid id PK
     string name
     string email UK
+    string phone UK
     string passwordHash
     Role role
   }
@@ -48,6 +49,9 @@ erDiagram
     string destination
     int seats
     RequestStatus status
+    int baseFarePaisa
+    int distanceChargePaisa
+    int poolDiscountPaisa
     int farePaisa
     PaymentMethod payment
   }
