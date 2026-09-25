@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { bangladeshPhone } from "./phone.js";
 import { db } from "./db.js";
 import { AREAS, compatible, fareBreakdown } from "./domain.js";
 import { authenticate, createAccount, requireRole, setSession, verifyLogin } from "./auth.js";
@@ -35,6 +36,7 @@ const uuid = z.string().uuid();
 const credentials = z.object({ email: z.string().email().max(255), password: z.string().min(8).max(72) });
 const signup = credentials.extend({
   name: z.string().trim().min(2).max(80),
+  phone: bangladeshPhone,
   role: z.enum(["PASSENGER", "DRIVER"]),
   vehicleName: z.string().trim().min(2).max(80).optional(),
   capacity: z.number().int().min(3).max(5).optional()
@@ -70,9 +72,13 @@ app.post("/api/auth/logout", (_req, res) => {
   res.status(204).end();
 });
 app.get("/api/me", authenticate, asyncRoute(async (req, res) => {
-  const user = await db.user.findUnique({ where: { id: req.principal!.id }, select: { id: true, name: true, email: true, role: true } });
+  const user = await db.user.findUnique({ where: { id: req.principal!.id }, select: { id: true, name: true, email: true, phone: true, role: true } });
   if (!user) throw new HttpError(401, "Account no longer exists");
   res.json(user);
+}));
+app.patch("/api/me/phone", authenticate, asyncRoute(async (req, res) => {
+  const { phone } = z.object({ phone: bangladeshPhone }).parse(req.body);
+  res.json(await db.user.update({ where: { id: req.principal!.id }, data: { phone }, select: { id: true, name: true, email: true, phone: true, role: true } }));
 }));
 
 app.post("/api/requests/estimate", authenticate, requireRole("PASSENGER"), (req, res) => {
@@ -102,7 +108,7 @@ app.get("/api/driver/dashboard", authenticate, requireRole("DRIVER"), asyncRoute
   if (!vehicle) throw new HttpError(404, "No Tesla assigned");
   const [pending, pools] = await Promise.all([
     db.rideRequest.findMany({ where: { status: "REQUESTED", seats: { lte: vehicle.capacity } }, select: { id: true, pickup: true, destination: true, seats: true, farePaisa: true, createdAt: true, passenger: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 30 }),
-    db.pool.findMany({ where: { vehicleId: vehicle.id }, include: { memberships: { include: { request: { select: { id: true, pickup: true, destination: true, seats: true, status: true, baseFarePaisa: true, distanceChargePaisa: true, poolDiscountPaisa: true, farePaisa: true, payment: true, passenger: { select: { name: true } } } } } } }, orderBy: { createdAt: "desc" }, take: 20 })
+    db.pool.findMany({ where: { vehicleId: vehicle.id }, include: { memberships: { include: { request: { select: { id: true, pickup: true, destination: true, seats: true, status: true, baseFarePaisa: true, distanceChargePaisa: true, poolDiscountPaisa: true, farePaisa: true, payment: true, passenger: { select: { name: true, phone: true } } } } } } }, orderBy: { createdAt: "desc" }, take: 20 })
   ]);
   const active = pools.find((pool) => ["ACCEPTED", "DRIVER_ARRIVED", "STARTED"].includes(pool.status));
   const members = active?.memberships.filter(({ request }) => request.status !== "CANCELLED") || [];
@@ -110,7 +116,21 @@ app.get("/api/driver/dashboard", authenticate, requireRole("DRIVER"), asyncRoute
   const relevant = active
     ? active.status === "ACCEPTED" ? pending.filter((request) => request.seats <= remaining && members.every((member) => compatible(member.request, request))) : []
     : pending;
-  res.json({ vehicle, pending: relevant, pools });
+  const visiblePools = pools.map((pool) => ({
+    ...pool,
+    memberships: pool.memberships.map((membership) => ({
+      ...membership,
+      request: {
+        ...membership.request,
+        passenger: {
+          ...membership.request.passenger,
+          phone: ["ACCEPTED", "DRIVER_ARRIVED", "STARTED"].includes(pool.status) && membership.request.status !== "CANCELLED"
+            ? membership.request.passenger.phone : null
+        }
+      }
+    }))
+  }));
+  res.json({ vehicle, pending: relevant, pools: visiblePools });
 }));
 app.patch("/api/driver/online", authenticate, requireRole("DRIVER"), asyncRoute(async (req, res) => {
   const { online } = z.object({ online: z.boolean() }).parse(req.body);

@@ -8,7 +8,7 @@ const passengerView = {
   id: true, pickup: true, destination: true, seats: true, status: true,
   baseFarePaisa: true, distanceChargePaisa: true, poolDiscountPaisa: true,
   farePaisa: true, payment: true, createdAt: true, updatedAt: true,
-  membership: { select: { pool: { select: { id: true, status: true, vehicle: { select: { name: true } } } } } },
+  membership: { select: { pool: { select: { id: true, status: true, vehicle: { select: { name: true, driver: { select: { name: true, phone: true } } } } } } } },
   events: { orderBy: { createdAt: "asc" as const }, select: { from: true, to: true, note: true, createdAt: true } }
 };
 
@@ -32,6 +32,8 @@ async function reprice(tx: Prisma.TransactionClient, poolId: string) {
 
 export async function createRequest(passengerId: string, pickup: Area, destination: Area, seats: number, payment: PaymentMethod) {
   return db.$transaction(async (tx) => {
+    const passenger = await tx.user.findUnique({ where: { id: passengerId }, select: { phone: true } });
+    if (!passenger?.phone) throw new HttpError(409, "Add a Bangladesh contact number before booking");
     const { distanceKm: _distanceKm, ...fare } = fareBreakdown(pickup, destination, seats, false);
     const request = await tx.rideRequest.create({ data: { passengerId, pickup, destination, seats, payment, ...fare } });
     await event(tx, request.id, passengerId, null, "REQUESTED", "Ride requested");
@@ -44,6 +46,8 @@ export async function acceptRequest(driverId: string, requestId: string) {
     const vehicle = await tx.vehicle.findUnique({ where: { driverId } });
     if (!vehicle) throw new HttpError(404, "No Tesla assigned to this driver");
     await lockVehicle(tx, vehicle.id); // Serializes competing claims for this vehicle.
+    const driver = await tx.user.findUnique({ where: { id: driverId }, select: { phone: true } });
+    if (!driver?.phone) throw new HttpError(409, "Add your contact number before accepting rides");
     if (!(await tx.vehicle.findUniqueOrThrow({ where: { id: vehicle.id } })).isOnline) throw new HttpError(409, "Go online before accepting rides");
     const request = await tx.rideRequest.findUnique({ where: { id: requestId } });
     if (!request || request.status !== "REQUESTED") throw new HttpError(409, "Request is no longer available");
@@ -138,6 +142,8 @@ export function setDriverOnline(driverId: string, online: boolean) {
     const vehicle = await tx.vehicle.findUnique({ where: { driverId } });
     if (!vehicle) throw new HttpError(404, "No Tesla assigned");
     await lockVehicle(tx, vehicle.id);
+    if (online && !(await tx.user.findUnique({ where: { id: driverId }, select: { phone: true } }))?.phone)
+      throw new HttpError(409, "Add your contact number before going online");
     if (!online && await tx.pool.count({ where: { vehicleId: vehicle.id, status: { in: activePoolStates } } }))
       throw new HttpError(409, "Complete or cancel your active pool first");
     return tx.vehicle.update({ where: { id: vehicle.id }, data: { isOnline: online } });
