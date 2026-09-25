@@ -56,6 +56,8 @@ Two bookings are compatible when they share a pickup and destination, or when bo
 
 Request lifecycle: `REQUESTED → ACCEPTED → DRIVER_ARRIVED → STARTED → COMPLETED`; cancellation is allowed from requested, accepted, or driver-arrived. Pool lifecycle starts at accepted because a pool exists only after driver acceptance. Drivers can cancel accepted/arrived pools; neither actor can cancel after departure. Every status change writes a `RideEvent` in the same transaction.
 
+Submitting a request only puts it in the waiting queue. The confirmation directs passengers to their ride status and does not name or promise a driver. A driver can accept only if the booking fits that vehicle's capacity; for example, Jashim's three-seat Bullet cannot accept a five-seat request.
+
 ### The last-seat race
 
 Each accept operation takes a PostgreSQL `SELECT ... FOR UPDATE` lock on Bullet's `Vehicle` row inside a Prisma transaction, then re-reads the active pool and sums seats of non-cancelled members. Thus two concurrent claims for the last seat are serialized; the second sees the first claim and receives HTTP 409. A partial unique index also prevents two active pools for the same vehicle. Request status uses a conditional update to resolve acceptance versus unassigned cancellation. At larger scale, partition drivers geographically, retain single-writer transaction ownership per vehicle, and add idempotency keys/retries around API requests.
