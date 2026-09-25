@@ -5,7 +5,7 @@ import helmet from "helmet";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "./db.js";
-import { AREAS, compatible, farePaisa } from "./domain.js";
+import { AREAS, compatible, fareBreakdown } from "./domain.js";
 import { authenticate, createAccount, requireRole, setSession, verifyLogin } from "./auth.js";
 import { asyncRoute, errors, HttpError } from "./http.js";
 import { acceptRequest, advancePool, cancelPool, cancelRequest, createRequest, getPassengerRide, listPassengerRides, setDriverOnline } from "./rides.js";
@@ -77,7 +77,7 @@ app.get("/api/me", authenticate, asyncRoute(async (req, res) => {
 
 app.post("/api/requests/estimate", authenticate, requireRole("PASSENGER"), (req, res) => {
   const input = requestInput.parse(req.body);
-  res.json({ farePaisa: farePaisa(input.pickup, input.destination, input.seats, false), pooledFarePaisa: farePaisa(input.pickup, input.destination, input.seats, true) });
+  res.json({ solo: fareBreakdown(input.pickup, input.destination, input.seats, false), pooled: fareBreakdown(input.pickup, input.destination, input.seats, true) });
 });
 app.post("/api/requests", authenticate, requireRole("PASSENGER"), asyncRoute(async (req, res) => {
   const input = requestInput.parse(req.body);
@@ -102,7 +102,7 @@ app.get("/api/driver/dashboard", authenticate, requireRole("DRIVER"), asyncRoute
   if (!vehicle) throw new HttpError(404, "No Tesla assigned");
   const [pending, pools] = await Promise.all([
     db.rideRequest.findMany({ where: { status: "REQUESTED", seats: { lte: vehicle.capacity } }, select: { id: true, pickup: true, destination: true, seats: true, farePaisa: true, createdAt: true, passenger: { select: { name: true } } }, orderBy: { createdAt: "asc" }, take: 30 }),
-    db.pool.findMany({ where: { vehicleId: vehicle.id }, include: { memberships: { include: { request: { select: { id: true, pickup: true, destination: true, seats: true, status: true, farePaisa: true, payment: true, passenger: { select: { name: true } } } } } } }, orderBy: { createdAt: "desc" }, take: 20 })
+    db.pool.findMany({ where: { vehicleId: vehicle.id }, include: { memberships: { include: { request: { select: { id: true, pickup: true, destination: true, seats: true, status: true, baseFarePaisa: true, distanceChargePaisa: true, poolDiscountPaisa: true, farePaisa: true, payment: true, passenger: { select: { name: true } } } } } } }, orderBy: { createdAt: "desc" }, take: 20 })
   ]);
   const active = pools.find((pool) => ["ACCEPTED", "DRIVER_ARRIVED", "STARTED"].includes(pool.status));
   const members = active?.memberships.filter(({ request }) => request.status !== "CANCELLED") || [];

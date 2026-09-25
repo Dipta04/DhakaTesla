@@ -66,6 +66,9 @@ model RideRequest {
   destination String        @db.VarChar(50)
   seats       Int
   status      RequestStatus @default(REQUESTED)
+  baseFarePaisa Int
+  distanceChargePaisa Int
+  poolDiscountPaisa Int
   farePaisa   Int
   payment     PaymentMethod @default(CASH)
   createdAt   DateTime      @default(now())

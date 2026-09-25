@@ -48,6 +48,9 @@ erDiagram
     string destination
     int seats
     RequestStatus status
+    int baseFarePaisa
+    int distanceChargePaisa
+    int poolDiscountPaisa
     int farePaisa
     PaymentMethod payment
   }
