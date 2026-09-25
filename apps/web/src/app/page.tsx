@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { api, DriverDashboard, Ride, taka, time, User } from "@/lib/api";
+import { api, DriverDashboard, FareEstimate, Ride, taka, time, User } from "@/lib/api";
 
 const AREAS = ["Banani", "Gulshan", "Mohakhali", "Dhanmondi", "Mirpur", "Uttara", "Farmgate", "Bashundhara"];
 const journey = ["REQUESTED", "ACCEPTED", "DRIVER_ARRIVED", "STARTED", "COMPLETED"];
@@ -61,6 +61,7 @@ function RideCard({ ride, onCancel, busy }: { ride: Ride; onCancel: (id: string)
     <div className="ride-top"><span className={`status ${ride.status.toLowerCase()}`}>{labels[ride.status]}</span><span className="ride-date">{time(ride.createdAt)}</span></div>
     <div className="route"><div><small>FROM</small><strong>{ride.pickup}</strong></div><span className="route-line"><Icon name="arrow" /></span><div><small>TO</small><strong>{ride.destination}</strong></div></div>
     <div className="ride-facts"><span>{ride.seats} {ride.seats === 1 ? "seat" : "seats"}</span><span>{ride.membership?.pool.vehicle.name || "Finding a Tesla"}</span><span>{ride.payment === "TESLAPAY" ? "TeslaPay (demo)" : "Cash"}</span><strong>{taka(ride.farePaisa)}</strong></div>
+    <div className="fare-lines ride-fare-lines"><span>Base fare · {ride.seats} {ride.seats === 1 ? "seat" : "seats"}<strong>{taka(ride.baseFarePaisa)}</strong></span><span>Distance charge<strong>+ {taka(ride.distanceChargePaisa)}</strong></span><span className="discount-line">Pool discount<strong>− {taka(ride.poolDiscountPaisa)}</strong></span><span className="fare-total">{ride.status === "CANCELLED" ? "Recorded fare before cancellation" : "Your current fare"}<strong>{taka(ride.farePaisa)}</strong></span></div>
     {ride.status !== "CANCELLED" && <div className="progress" aria-label={`Ride status: ${labels[ride.status]}`}>{journey.map((step, index) => <span key={step} className={index <= activeStep ? "done" : ""} title={labels[step]} />)}</div>}
     {ride.events && <details className="history"><summary>View ride timeline</summary><ol>{ride.events.map((event, index) => <li key={index}><strong>{labels[event.to]}</strong><span>{time(event.createdAt)}</span>{event.note && <small>{event.note}</small>}</li>)}</ol></details>}
     {cancelable && <button className="text-button danger" disabled={busy} onClick={() => onCancel(ride.id)}>Cancel this ride</button>}
@@ -72,7 +73,7 @@ function PassengerPanel({ user }: { user: User }) {
   const [destination, setDestination] = useState("Mohakhali");
   const [seats, setSeats] = useState(1);
   const [payment, setPayment] = useState("CASH");
-  const [estimate, setEstimate] = useState<{ farePaisa: number; pooledFarePaisa: number } | null>(null);
+  const [estimate, setEstimate] = useState<FareEstimate | null>(null);
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -88,7 +89,7 @@ function PassengerPanel({ user }: { user: User }) {
   useEffect(() => {
     if (pickup === destination) { setEstimate(null); return; }
     let current = true;
-    api<{ farePaisa: number; pooledFarePaisa: number }>("/requests/estimate", { method: "POST", body: JSON.stringify({ pickup, destination, seats, payment }) })
+    api<FareEstimate>("/requests/estimate", { method: "POST", body: JSON.stringify({ pickup, destination, seats, payment }) })
       .then((value) => { if (current) setEstimate(value); }).catch(() => { if (current) setEstimate(null); });
     return () => { current = false; };
   }, [pickup, destination, seats, payment]);
@@ -111,8 +112,9 @@ function PassengerPanel({ user }: { user: User }) {
     <div className="dashboard-grid"><section className="booking-card"><div className="section-heading"><div><span className="eyebrow">PLAN A RIDE</span><h2>Find your seat</h2></div><span className="card-icon">✦</span></div>
       <form onSubmit={book} className="stack"><div className="form-row"><label>Pick-up area<select value={pickup} onChange={(event) => setPickup(event.target.value)}>{AREAS.map((area) => <option key={area}>{area}</option>)}</select></label><label>Destination<select value={destination} onChange={(event) => setDestination(event.target.value)}>{AREAS.map((area) => <option key={area}>{area}</option>)}</select></label></div>
         <div className="form-row"><label>Seats<select value={seats} onChange={(event) => setSeats(Number(event.target.value))}>{[1,2,3,4,5].map((count) => <option key={count} value={count}>{count} {count === 1 ? "seat" : "seats"}</option>)}</select></label><label>Payment<select value={payment} onChange={(event) => setPayment(event.target.value)}><option value="CASH">Cash</option><option value="TESLAPAY">TeslaPay (simulated)</option></select></label></div>
-        <div className="fare-preview"><div><small>YOUR ESTIMATED FARE</small><strong>{pickup === destination ? "Choose a destination" : estimate ? taka(estimate.farePaisa) : "Calculating…"}</strong></div><div className="discount-tag">Pool fare {estimate ? taka(estimate.pooledFarePaisa) : "—"}</div></div>
-        <p className="hint">The lower fare applies when another booking joins your pool before departure.</p>
+        <div className="fare-preview"><div><small>ESTIMATE BEFORE MATCHING · {seats} {seats === 1 ? "SEAT" : "SEATS"}</small><strong>{pickup === destination ? "Choose a destination" : estimate ? taka(estimate.solo.farePaisa) : "Calculating…"}</strong></div><div className="discount-tag">If pooled: {estimate ? taka(estimate.pooled.farePaisa) : "—"}</div></div>
+        {estimate && <div className="fare-lines"><span>Base fare<strong>{taka(estimate.solo.baseFarePaisa)}</strong></span><span>Distance · {estimate.solo.distanceKm} km<strong>+ {taka(estimate.solo.distanceChargePaisa)}</strong></span><span className="discount-line">Potential pool discount · 20%<strong>− {taka(estimate.pooled.poolDiscountPaisa)}</strong></span><span className="fare-total">After pool discount<strong>{taka(estimate.pooled.farePaisa)}</strong></span></div>}
+        <p className="hint">You start at the solo fare. The discount is applied to your booking when a second compatible booking joins before departure.</p>
         <button className="button primary full" disabled={busy || pickup === destination}>{busy ? "Sending request…" : "Request a Tesla"} <Icon name="arrow" /></button>
       </form></section>
       <aside className="how-card"><span className="eyebrow">HOW IT WORKS</span><h2>Better together.<br />Even in traffic.</h2><div className="how-step"><span>01</span><div><strong>Pick your route</strong><p>Choose from familiar Dhaka neighbourhoods.</p></div></div><div className="how-step"><span>02</span><div><strong>Share when it fits</strong><p>Compatible trips can use a driver's available seats.</p></div></div><div className="how-step"><span>03</span><div><strong>Pay your own fare</strong><p>Everyone sees their own price and progress.</p></div></div><div className="mini-map"><div className="map-path" /><span className="map-dot first">Banani</span><span className="map-dot second">Mohakhali</span><span className="map-dot third">Gulshan</span></div></aside></div>

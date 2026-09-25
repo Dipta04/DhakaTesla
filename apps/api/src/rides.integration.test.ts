@@ -38,6 +38,9 @@ describe.skipIf(!run)("ride integrity in PostgreSQL", () => {
     expect(await acceptRequest(fixture!.driverId, second.id)).toBe(poolId);
     expect((await db.rideRequest.findUniqueOrThrow({ where: { id: first.id } })).farePaisa).toBe(7600);
     expect((await db.rideRequest.findUniqueOrThrow({ where: { id: second.id } })).farePaisa).toBe(8800);
+    const nusratFare = await db.rideRequest.findUniqueOrThrow({ where: { id: first.id } });
+    expect(nusratFare.baseFarePaisa + nusratFare.distanceChargePaisa - nusratFare.poolDiscountPaisa).toBe(nusratFare.farePaisa);
+    expect(nusratFare.poolDiscountPaisa).toBe(1900);
     await expect(acceptRequest(fixture!.driverId, tooMany.id)).rejects.toThrow("Not enough seats");
   });
 
@@ -65,6 +68,7 @@ describe.skipIf(!run)("ride integrity in PostgreSQL", () => {
     await acceptRequest(fixture!.driverId, second.id);
     await cancelRequest(rafiq, second.id);
     expect((await db.rideRequest.findUniqueOrThrow({ where: { id: first.id } })).farePaisa).toBe(9500);
+    expect((await db.rideRequest.findUniqueOrThrow({ where: { id: first.id } })).poolDiscountPaisa).toBe(0);
     expect((await db.rideRequest.findUniqueOrThrow({ where: { id: second.id } })).status).toBe("CANCELLED");
     expect(await db.membership.count({ where: { poolId, request: { status: { not: "CANCELLED" } } } })).toBe(1);
   });
