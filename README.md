@@ -188,13 +188,13 @@ Local Docker needs no cloud account. For a public demo, create a free Prisma Pos
 
 ## GitHub upload and required branches
 
-The checked-in history includes `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, `feature/passenger-ui`, `feature/driver-signup`, `feature/fare-clarity`, `feature/contact-numbers`, and `feature/request-confirmation`, merged to `master`. `pre-release` contains integration/docs/verification. `release/v1.0.0` preserves the original MVP, and `release/v1.1.0` contains role signup, fare transparency, and assigned-ride contact numbers. The generic request confirmation is on `master` after v1.1.0. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
+The checked-in history includes `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, `feature/passenger-ui`, `feature/driver-signup`, `feature/fare-clarity`, `feature/contact-numbers`, `feature/request-confirmation`, and `feature/diagram-png`, merged to `master`. `pre-release` contains integration/docs/verification. `release/v1.0.0` preserves the original MVP, and `release/v1.1.0` contains role signup, fare transparency, and assigned-ride contact numbers. The generic request confirmation and PNG diagrams are on `master` after v1.1.0. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
 
 ```bash
 git remote add origin https://github.com/YOUR_USERNAME/dhaka-tesla-pool.git
 git push -u origin master
 git push origin pre-release release/v1.0.0 release/v1.1.0
-git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui feature/driver-signup feature/fare-clarity feature/contact-numbers feature/request-confirmation
+git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui feature/driver-signup feature/fare-clarity feature/contact-numbers feature/request-confirmation feature/diagram-png
 ```
 
 GitHub will ask for browser authentication or a credential manager; never paste a personal access token into a committed file. Set `master` as the default branch in **Settings → Default branch**, make the repository public or grant evaluator access, and verify that the branches and merge commits appear in **Branches** and **Commits**. For subsequent work: branch from `master`, commit a logical change with `feat(scope): ...` or the specified `fix/refactor/test/docs/chore/build` types, merge into `master` after checks, then cut a new pre-release and release version when ready. Do not create duplicate project folders for each branch.
