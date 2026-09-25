@@ -3,7 +3,10 @@ node_modules
 **/.next
 **/dist
 .git
-.env
-**/.env
+.env*
+**/.env*
 *.pdf
 coverage
+tmp/
+docs/
+README.md
