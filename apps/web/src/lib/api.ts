@@ -1,9 +1,9 @@
-export type User = { id: string; name: string; email: string; role: "PASSENGER" | "DRIVER" };
+export type User = { id: string; name: string; email: string; phone: string | null; role: "PASSENGER" | "DRIVER" };
 export type Ride = {
   id: string; pickup: string; destination: string; seats: number; status: string;
   baseFarePaisa: number; distanceChargePaisa: number; poolDiscountPaisa: number;
   farePaisa: number; payment: string; createdAt: string;
-  membership?: { pool: { id: string; status: string; vehicle: { name: string } } } | null;
+  membership?: { pool: { id: string; status: string; vehicle: { name: string; driver: { name: string; phone: string | null } } } } | null;
   events?: { from: string | null; to: string; note: string | null; createdAt: string }[];
 };
 export type FareQuote = { distanceKm: number; baseFarePaisa: number; distanceChargePaisa: number; poolDiscountPaisa: number; farePaisa: number };
@@ -11,7 +11,7 @@ export type FareEstimate = { solo: FareQuote; pooled: FareQuote };
 export type DriverDashboard = {
   vehicle: { id: string; name: string; capacity: number; isOnline: boolean };
   pending: (Pick<Ride, "id" | "pickup" | "destination" | "seats" | "farePaisa" | "createdAt"> & { passenger: { name: string } })[];
-  pools: { id: string; status: string; pickup: string; createdAt: string; memberships: { seats: number; request: Ride & { passenger: { name: string } } }[] }[];
+  pools: { id: string; status: string; pickup: string; createdAt: string; memberships: { seats: number; request: Ride & { passenger: { name: string; phone: string | null } } }[] }[];
 };
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

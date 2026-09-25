@@ -7,6 +7,7 @@ import { db } from "./db.js";
 const run = !!process.env.TEST_DATABASE_URL && process.env.DATABASE_URL === process.env.TEST_DATABASE_URL && process.env.TEST_DATABASE_URL.includes("_test");
 const suffix = randomUUID();
 const created: string[] = [];
+let phoneCounter = 0;
 let server: Server;
 let baseUrl: string;
 
@@ -26,9 +27,11 @@ describe.skipIf(!run)("account registration in PostgreSQL", () => {
   });
 
   async function signup(role: "PASSENGER" | "DRIVER", capacity?: number) {
+    const serial = ++phoneCounter;
+    const phone = `017${String(70000000 + serial)}`;
     return fetch(`${baseUrl}/api/auth/signup`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "New Driver", email: `${role.toLowerCase()}-${capacity ?? "none"}-${suffix}@test.local`, password: "StrongPass123!", role, vehicleName: "City Comet", capacity })
+      body: JSON.stringify({ name: "New Driver", email: `${role.toLowerCase()}-${capacity ?? "none"}-${serial}-${suffix}@test.local`, phone, password: "StrongPass123!", role, vehicleName: "City Comet", capacity })
     });
   }
 
@@ -58,5 +61,29 @@ describe.skipIf(!run)("account registration in PostgreSQL", () => {
     created.push(user.id);
     expect(user.role).toBe("PASSENGER");
     expect(await db.vehicle.findUnique({ where: { driverId: user.id } })).toBeNull();
+  });
+
+  it("lets an existing account add a Bangladesh contact number", async () => {
+    const signupResponse = await signup("PASSENGER");
+    expect(signupResponse.status).toBe(201);
+    const user = await signupResponse.json() as { id: string };
+    created.push(user.id);
+    await db.user.update({ where: { id: user.id }, data: { phone: null } });
+    const cookie = signupResponse.headers.get("set-cookie")?.split(";")[0];
+    expect(cookie).toBeTruthy();
+
+    const invalid = await fetch(`${baseUrl}/api/me/phone`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", Cookie: cookie! },
+      body: JSON.stringify({ phone: "12345" })
+    });
+    expect(invalid.status).toBe(400);
+
+    const updated = await fetch(`${baseUrl}/api/me/phone`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", Cookie: cookie! },
+      body: JSON.stringify({ phone: "01712-345678" })
+    });
+    expect(updated.status).toBe(200);
+    expect((await updated.json() as { phone: string }).phone).toBe("+8801712345678");
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).phone).toBe("+8801712345678");
   });
 });

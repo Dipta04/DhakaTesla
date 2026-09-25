@@ -31,6 +31,7 @@ erDiagram
     uuid id PK
     string name
     string email UK
+    string phone UK
     string passwordHash
     Role role
   }
