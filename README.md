@@ -13,6 +13,13 @@
 
 ![Application landing page](docs/screenshots/landing.png)
 
+## Deployment
+
+- Frontend: [Dhaka Tesla Pool](https://dhaka-tesla-web.vercel.app/)
+- Backend API base: `https://dhaka-tesla-api.vercel.app` — [health check](https://dhaka-tesla-api.vercel.app/api/health)
+
+The API URL is public so the frontend can reach it. Database connection strings and authentication secrets belong only in the deployment environment variables.
+
 ## Architecture
 
 ![Architecture diagram](docs/architecture.png)
@@ -116,7 +123,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Run from the repository root, where `compose.yaml` lives. In PowerShell use `Copy-Item .env.example .env` instead of `cp`. Open **http://localhost:3000**. Compose waits for Postgres, applies migrations, seeds demo data, and starts the API and web app. Stop with `docker compose down`; `docker compose down -v` also deletes the database volume. Docker Compose is the reproducible deployment option while no public URL is available.
+Run from the repository root, where `compose.yaml` lives. In PowerShell use `Copy-Item .env.example .env` instead of `cp`. Open **http://localhost:3000**. Compose waits for Postgres, applies migrations, seeds demo data, and starts the API and web app. Stop with `docker compose down`; `docker compose down -v` also deletes the database volume. Docker Compose remains the reproducible local setup.
 
 ### Host development
 
