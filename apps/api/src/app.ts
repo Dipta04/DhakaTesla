@@ -1,7 +1,7 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import helmet from "helmet";
+import * as helmet from "helmet";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { bangladeshPhone } from "./phone.js";
@@ -13,7 +13,7 @@ import { acceptRequest, advancePool, cancelPool, cancelRequest, createRequest, g
 
 export const app = express();
 app.disable("x-powered-by");
-app.use(helmet());
+app.use(helmet.default());
 app.use(express.json({ limit: "32kb" }));
 app.use(cookieParser());
 app.use(cors({ origin: process.env.WEB_ORIGIN || "http://localhost:3000", credentials: true }));
