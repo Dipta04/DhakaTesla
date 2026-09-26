@@ -2,8 +2,6 @@
 
 **Share a seat. Split the fare. Survive Dhaka traffic.** This is a ride-pooling MVP for passengers, Jashim the driver, and Bullet, his three-seat Tesla. Nusrat's Banani → Mohakhali request and Rafiq's Banani → Gulshan request can join one pool; each passenger sees only their own fare and ride history.
 
-> **Submission status:** Code, migrations, seed data, diagrams, and local Docker setup are included. A public deployment and a recorded six-minute video require the repository owner's accounts; their links must be added before final submission. Docker could not be executed in this development environment, so run the Compose smoke check below on a machine with Docker.
-
 ## Product tour
 
 - Passenger: choose the passenger role at signup, add a Bangladesh mobile number, sign in, choose two Dhaka areas, see a fare breakdown, request one to five seats, follow status, call the assigned driver, cancel before departure, and review the event timeline.
@@ -11,11 +9,9 @@
 - Pool: one active pool per vehicle, occupied seats never above that vehicle's capacity, matching by the documented rule, fare recalculation before start, individual request status and immutable events.
 - Payment: cash or **simulated** TeslaPay selection. No money is collected or wallet balance maintained.
 
-### Screenshots and video
+### Screenshot
 
 ![Application landing page](docs/screenshots/landing.png)
-
-The architecture and ERD images below can be shown in the video. **Demo video:** record and insert your own Loom or equivalent link here before submission. Follow the timing guide in [docs/demo-video.md](docs/demo-video.md).
 
 ## Architecture
 
@@ -27,7 +23,7 @@ The architecture and ERD images below can be shown in the video. **Demo video:**
 
 [Open the ERD at full size](docs/erd.png).
 
-Editable Mermaid diagrams and import instructions are in [docs/diagrams.md](docs/diagrams.md). The browser calls `/api` on the Next.js origin. Next.js rewrites those requests to Express. Express performs validation, authorization, matching, fare calculation, status transitions, and transactional seat enforcement. Prisma ORM talks to PostgreSQL. The same schema works with local PostgreSQL or hosted **Prisma Postgres**; a hosted database does not replace the API.
+The browser calls `/api` on the Next.js origin. Next.js rewrites those requests to Express. Express performs validation, authorization, matching, fare calculation, status transitions, and transactional seat enforcement. Prisma ORM talks to PostgreSQL. The same schema works with local PostgreSQL or hosted **Prisma Postgres**.
 
 ### Why these tables exist
 
@@ -90,11 +86,9 @@ apps/web/
   src/app/page.tsx, globals.css
   src/lib/api.ts
 docs/
-  architecture.png, erd.png, diagrams.md, demo-video.md
+  architecture.png, erd.png, screenshots/landing.png
 compose.yaml, .env.example, README.md
 ```
-
-These are **folders in one repository**. `master`, `pre-release`, `release/v1.0.0`, `release/v1.1.0`, and `feature/*` are Git branches, not duplicate folders. Their commit history shows the implementation steps.
 
 ## Prerequisites and environment
 
@@ -122,7 +116,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Run the command from the repository root, **`E:\telsa_internship_project`** in the provided workspace, where `compose.yaml` lives. In PowerShell use `Copy-Item .env.example .env` instead of `cp` if needed. Open **http://localhost:3000**. Compose waits for Postgres, applies all checked-in migrations, seeds the cast, starts Express, waits for `/api/health`, then starts Next.js. Stop with `docker compose down`. To remove demo data as well, `docker compose down -v` destroys the database volume; use it only when you intend to reset data. If a password changes after the volume has been initialized, reset the volume or update the database user separately.
+Run from the repository root, where `compose.yaml` lives. In PowerShell use `Copy-Item .env.example .env` instead of `cp`. Open **http://localhost:3000**. Compose waits for Postgres, applies migrations, seeds demo data, and starts the API and web app. Stop with `docker compose down`; `docker compose down -v` also deletes the database volume. Docker Compose is the reproducible deployment option while no public URL is available.
 
 ### Host development
 
@@ -163,7 +157,7 @@ npm run db:migrate
 npm test
 ```
 
-The integration suite skips itself when no matching test database is configured. It does not run against the demo or production database. **Verification completed:** both production builds passed; all 17 tests passed against a disposable local PostgreSQL 18 database, including driver registration, 5-seat capacity, concurrent claims, fare arithmetic, migration backfill, phone normalization/profile update, and assigned-contact privacy. An HTTP smoke run signed in Nusrat/Jashim and confirmed two pool members at 7,600/8,800 paisa. Docker was unavailable, so Compose startup still needs a local smoke run before submission.
+The integration suite runs only with a matching disposable test database; it skips itself otherwise.
 
 ## API overview
 
@@ -179,25 +173,6 @@ All endpoints are JSON under `/api` except 204 responses. Authentication uses an
 | `GET /driver/dashboard`, `PATCH /driver/online` | Driver | Request queue, pools, status, availability. |
 | `POST /driver/requests/:id/accept` | Driver | Create/join pool within capacity. |
 | `POST /driver/pools/:id/advance`, `/cancel` | Driver | Allowed lifecycle transitions. |
-
-## Deployment with Prisma Postgres
-
-Local Docker needs no cloud account. For a public demo, create a free Prisma Postgres database in the Prisma Console and copy its **pooled TCP** string into `DATABASE_URL` and **direct TCP** string into `DIRECT_URL`. [Prisma's connection guidance](https://www.prisma.io/docs/postgres/database/connecting-to-your-database) distinguishes app traffic from migrations; both URLs require SSL in the hosted service. Run `prisma migrate deploy` with the direct URL, then deploy the Express container and Next.js container to free-tier hosts that support them. Set `WEB_ORIGIN` to the exact public frontend HTTPS origin. Build Next.js with `API_INTERNAL_URL` pointing to the API's reachable HTTPS URL (or internal service URL on the same host). Keep `JWT_SECRET` and DB URLs in host secret settings. Test sign in, two pooled bookings, the last-seat conflict, and a refresh after deployment. Record the live URLs here once available.
-
-**Deployment URL:** pending owner deployment. Free backends may sleep or free tiers may change; Docker Compose remains the reproducible deployment path. Do not pay for infrastructure just for this assessment.
-
-## GitHub upload and required branches
-
-The checked-in history includes `feature/passenger-auth`, `feature/tesla-pooling`, `feature/driver-flow`, `feature/passenger-ui`, `feature/driver-signup`, `feature/fare-clarity`, `feature/contact-numbers`, `feature/request-confirmation`, and `feature/diagram-png`, merged to `master`. `pre-release` contains integration/docs/verification. `release/v1.0.0` preserves the original MVP, and `release/v1.1.0` contains role signup, fare transparency, and assigned-ride contact numbers. The generic request confirmation and PNG diagrams are on `master` after v1.1.0. On GitHub, create an **empty** repository (no generated README, license, or `.gitignore`) named e.g. `dhaka-tesla-pool`, then run:
-
-```bash
-git remote add origin https://github.com/YOUR_USERNAME/dhaka-tesla-pool.git
-git push -u origin master
-git push origin pre-release release/v1.0.0 release/v1.1.0
-git push origin feature/passenger-auth feature/tesla-pooling feature/driver-flow feature/passenger-ui feature/driver-signup feature/fare-clarity feature/contact-numbers feature/request-confirmation feature/diagram-png
-```
-
-GitHub will ask for browser authentication or a credential manager; never paste a personal access token into a committed file. Set `master` as the default branch in **Settings → Default branch**, make the repository public or grant evaluator access, and verify that the branches and merge commits appear in **Branches** and **Commits**. For subsequent work: branch from `master`, commit a logical change with `feat(scope): ...` or the specified `fix/refactor/test/docs/chore/build` types, merge into `master` after checks, then cut a new pre-release and release version when ready. Do not create duplicate project folders for each branch.
 
 ## Decisions, limitations, and next work
 
@@ -215,6 +190,4 @@ At roughly 1M passengers and 100k drivers: place stateless Next.js/API instances
 
 ## AI usage
 
-**Tool:** OpenAI Codex was used to draft the implementation, diagrams, README, and tests and to review build/test results. **Accepted suggestion:** lock the vehicle row in a PostgreSQL transaction so concurrent seat claims serialize. **Changed suggestion:** avoid a map service and broad route matching; the PRD values explainable matching, so this MVP uses explicit Banani corridor compatibility and a hand-checkable grid fare. The repository owner should run Docker, review the code, and be able to explain or modify each choice in the demo/interview.
-
-The assignment source is `Dhaka_Tesla_Pool_PRD_Internship.pdf` (kept outside Git history). No private credentials or deployment URL are embedded in source.
+**Tool:** OpenAI Codex assisted with the implementation, diagrams, documentation, and tests. **Accepted suggestion:** lock the vehicle row in a PostgreSQL transaction so concurrent seat claims serialize. **Changed suggestion:** use explicit Banani corridor matching and a hand-checkable fare instead of a map service or broad route matching.
