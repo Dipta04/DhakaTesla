@@ -153,3 +153,5 @@ app.post("/api/driver/pools/:id/cancel", authenticate, requireRole("DRIVER"), as
 
 app.use((_req, _res, next) => next(new HttpError(404, "Endpoint not found")));
 app.use(errors);
+
+export default app;
