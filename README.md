@@ -18,8 +18,6 @@
 - Frontend: [Dhaka Tesla Pool](https://dhaka-tesla-web.vercel.app/)
 - Backend API base: `https://dhaka-tesla-api.vercel.app` — [health check](https://dhaka-tesla-api.vercel.app/api/health)
 
-The API URL is public so the frontend can reach it. Database connection strings and authentication secrets belong only in the deployment environment variables.
-
 ## Architecture
 
 ![Architecture diagram](docs/architecture.png)
