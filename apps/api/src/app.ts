@@ -13,7 +13,8 @@ import { acceptRequest, advancePool, cancelPool, cancelRequest, createRequest, g
 
 export const app = express();
 app.disable("x-powered-by");
-app.use(helmet.default());
+const helmetMiddleware = helmet.default as unknown as () => express.RequestHandler;
+app.use(helmetMiddleware());
 app.use(express.json({ limit: "32kb" }));
 app.use(cookieParser());
 app.use(cors({ origin: process.env.WEB_ORIGIN || "http://localhost:3000", credentials: true }));
